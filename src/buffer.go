@@ -27,11 +27,11 @@ func (j JobQueue) Producer(v Job) {
 
 func (j JobQueue) Consumer() {
 	for v := range j.Jq {
-		process(v)
+		Process(v)
 		fmt.Printf("Consumer buffer size: %d/%d\n", len(j.Jq), j.bufferSize)
 	}
 }
 
-func process(job Job) {
+func Process(job Job) {
 	fmt.Println("consumer : ", job)
 }

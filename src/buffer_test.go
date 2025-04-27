@@ -29,8 +29,14 @@ func BenchmarkConcurrent(b *testing.B) {
 }
 
 func BenchmarkGoodConcurrent(b *testing.B) {
-	q := NewGoodQueue(1000, 10)
+
+	q := NewGoodQueue(1000, 10, Process)
 	done := make(chan bool)
+
+	go func() {
+		q.Close()
+		done <- true
+	}()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -39,7 +45,5 @@ func BenchmarkGoodConcurrent(b *testing.B) {
 		})
 	}
 
-	// 채널을 닫아서 Consumer 종료
-	close(q.jq)
 	<-done
 }

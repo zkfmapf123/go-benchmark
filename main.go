@@ -39,8 +39,7 @@ func main() {
 	app.Use(logger.New())
 
 	// q := src.NewQueue(100)
-	q := src.NewGoodQueue(100, 10)
-	q.Close()
+	q := src.NewGoodQueue(100, 10, src.Process)
 
 	// ping
 	app.Get("/ping", func(c *fiber.Ctx) error {

@@ -3,41 +3,27 @@ package src
 import (
 	"context"
 	"sync"
-)
-
-type Priority int
-
-const (
-	Low Priority = iota
-	Medium
-	High
-)
-
-type JobStatus string
-
-const (
-	Pending    JobStatus = "pending"
-	Processing JobStatus = "processing"
-	Completed  JobStatus = "completed"
-	Failed     JobStatus = "failed"
-	Timeout    JobStatus = "timeout"
+	"sync/atomic"
 )
 
 type GoodQueue struct {
-	jq      chan Job
-	workers int
-	wg      sync.WaitGroup
-	ctx     context.Context
-	cancel  context.CancelFunc
+	jq          chan Job
+	workers     int
+	wg          sync.WaitGroup
+	ctx         context.Context
+	cancel      context.CancelFunc
+	closed      atomic.Bool
+	processFunc func(Job)
 }
 
-func NewGoodQueue(bufferSize, workers int) *GoodQueue {
+func NewGoodQueue(bufferSize, workers int, processFunc func(Job)) *GoodQueue {
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &GoodQueue{
-		jq:      make(chan Job, bufferSize),
-		workers: workers,
-		ctx:     ctx,
-		cancel:  cancel,
+		jq:          make(chan Job, bufferSize),
+		workers:     workers,
+		ctx:         ctx,
+		cancel:      cancel,
+		processFunc: processFunc,
 	}
 	q.startWorkers()
 	return q
@@ -56,7 +42,7 @@ func (j *GoodQueue) startWorkers() {
 					if !ok {
 						return
 					}
-					process(job)
+					j.processFunc(job)
 				}
 			}
 		}(i)
@@ -64,6 +50,10 @@ func (j *GoodQueue) startWorkers() {
 }
 
 func (j *GoodQueue) Producer(v Job) error {
+	if j.closed.Load() {
+		return context.Canceled
+	}
+
 	select {
 	case <-j.ctx.Done():
 		return j.ctx.Err()
@@ -75,6 +65,9 @@ func (j *GoodQueue) Producer(v Job) error {
 }
 
 func (j *GoodQueue) Close() {
+	if !j.closed.CompareAndSwap(false, true) {
+		return // 이미 닫혔음
+	}
 	j.cancel()
 	close(j.jq)
 	j.wg.Wait()
